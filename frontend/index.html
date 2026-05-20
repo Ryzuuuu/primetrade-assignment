@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Primetrade Task Manager</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+    .container { max-width: 800px; margin: 0 auto; padding: 2rem; }
+    h1 { color: #38bdf8; margin-bottom: 1.5rem; }
+    .card { background: #1e293b; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem; }
+    input, button { width: 100%; padding: 0.6rem; margin: 0.4rem 0; border-radius: 6px; border: none; }
+    input { background: #334155; color: white; }
+    button { background: #0ea5e9; color: white; cursor: pointer; font-weight: bold; }
+    button:hover { background: #0284c7; }
+    .btn-danger { background: #ef4444; }
+    .msg { padding: 0.5rem; border-radius: 4px; margin: 0.5rem 0; font-size: 0.9rem; }
+    .success { background: #166534; } .error { background: #7f1d1d; }
+    .task-item { background: #0f172a; padding: 1rem; border-radius: 6px; margin: 0.5rem 0; display: flex; justify-content: space-between; align-items: center; }
+    .hidden { display: none; }
+    .tab-btn { width: auto; background: #334155; margin-right: 0.5rem; }
+    .tab-btn.active { background: #0ea5e9; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>Primetrade Task Manager</h1>
+
+  <!-- Auth Section -->
+  <div id="authSection" class="card">
+    <button class="tab-btn active" onclick="showTab('login')">Login</button>
+    <button class="tab-btn" onclick="showTab('register')">Register</button>
+    <div id="loginTab">
+      <h3>Login</h3>
+      <input id="loginUser" placeholder="Username" />
+      <input id="loginPass" placeholder="Password" type="password" />
+      <button onclick="login()">Login</button>
+    </div>
+    <div id="registerTab" class="hidden">
+      <h3>Register</h3>
+      <input id="regUser" placeholder="Username" />
+      <input id="regEmail" placeholder="Email" />
+      <input id="regPass" placeholder="Password" type="password" />
+      <button onclick="register()">Register</button>
+    </div>
+    <div id="authMsg"></div>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dashboard" class="hidden">
+    <div class="card">
+      <h2>Dashboard <span id="roleTag"></span></h2>
+      <button onclick="logout()" class="btn-danger" style="width:auto">Logout</button>
+    </div>
+    <div class="card">
+      <h3>Create Task</h3>
+      <input id="taskTitle" placeholder="Task title" />
+      <input id="taskDesc" placeholder="Description (optional)" />
+      <button onclick="createTask()">Add Task</button>
+      <div id="taskMsg"></div>
+    </div>
+    <div class="card">
+      <h3>My Tasks</h3>
+      <button onclick="loadTasks()" style="width:auto;margin-bottom:1rem">Refresh</button>
+      <div id="taskList"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'http://localhost:8000/api/v1';
+let token = localStorage.getItem('token');
+
+if (token) showDashboard();
+
+function showTab(tab) {
+  document.getElementById('loginTab').classList.toggle('hidden', tab !== 'login');
+  document.getElementById('registerTab').classList.toggle('hidden', tab !== 'register');
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', (i===0&&tab==='login')||(i===1&&tab==='register')));
+}
+
+async function register() {
+  const res = await fetch(`${API}/auth/register`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({username: regUser.value, email: regEmail.value, password: regPass.value})
+  });
+  const data = await res.json();
+  showMsg('authMsg', res.ok ? 'Registered! Please login.' : data.detail, res.ok);
+}
+
+async function login() {
+  const form = new URLSearchParams({username: loginUser.value, password: loginPass.value});
+  const res = await fetch(`${API}/auth/login`, {method:'POST', body: form});
+  const data = await res.json();
+  if (res.ok) { token = data.access_token; localStorage.setItem('token', token); showDashboard(); }
+  else showMsg('authMsg', data.detail, false);
+}
+
+function logout() { localStorage.removeItem('token'); token=null; document.getElementById('authSection').classList.remove('hidden'); document.getElementById('dashboard').classList.add('hidden'); }
+
+function showDashboard() {
+  document.getElementById('authSection').classList.add('hidden');
+  document.getElementById('dashboard').classList.remove('hidden');
+  const payload = JSON.parse(atob(token.split('.')[1]));
+  document.getElementById('roleTag').textContent = `[${payload.role}]`;
+  document.getElementById('roleTag').style.color = payload.role==='admin'?'#f59e0b':'#34d399';
+  loadTasks();
+}
+
+async function loadTasks() {
+  const res = await fetch(`${API}/tasks/`, {headers:{Authorization:`Bearer ${token}`}});
+  const tasks = await res.json();
+  taskList.innerHTML = tasks.length ? tasks.map(t => `
+    <div class="task-item">
+      <div><strong>${t.title}</strong>${t.description?`<br><small>${t.description}</small>`:''}<br><small style="color:${t.completed?'#34d399':'#94a3b8'}">${t.completed?'✅ Done':'⏳ Pending'}</small></div>
+      <div>
+        <button onclick="toggleTask(${t.id},${t.completed})" style="width:auto;margin-right:5px">${t.completed?'Undo':'Done'}</button>
+        <button onclick="deleteTask(${t.id})" class="btn-danger" style="width:auto">Del</button>
+      </div>
+    </div>`).join('') : '<p style="color:#64748b">No tasks yet.</p>';
+}
+
+async function createTask() {
+  const res = await fetch(`${API}/tasks/`, {method:'POST', headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},
+    body: JSON.stringify({title: taskTitle.value, description: taskDesc.value})});
+  if (res.ok) { taskTitle.value=''; taskDesc.value=''; showMsg('taskMsg','Task created!',true); loadTasks(); }
+  else { const d=await res.json(); showMsg('taskMsg',d.detail,false); }
+}
+
+async function toggleTask(id, done) {
+  await fetch(`${API}/tasks/${id}`, {method:'PUT', headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},
+    body: JSON.stringify({completed: !done})});
+  loadTasks();
+}
+
+async function deleteTask(id) {
+  await fetch(`${API}/tasks/${id}`, {method:'DELETE', headers:{Authorization:`Bearer ${token}`}});
+  loadTasks();
+}
+
+function showMsg(id, msg, ok) {
+  const el = document.getElementById(id);
+  el.innerHTML = `<div class="msg ${ok?'success':'error'}">${msg}</div>`;
+  setTimeout(()=>el.innerHTML='', 3000);
+}
+</script>
+</body>
+</html>
