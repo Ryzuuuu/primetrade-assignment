@@ -1,0 +1,6 @@
+line-length = 120
+exclude = ["venv", ".venv"]
+
+[lint]
+select = ["E", "F", "I", "UP"]
+ignore = ["UP006", "UP007", "UP017", "UP035", "UP045"]
