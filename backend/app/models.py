@@ -1,6 +1,8 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.sql import func
+
 from app.database import Base
+
 
 class User(Base):
     __tablename__ = "users"
@@ -11,6 +13,7 @@ class User(Base):
     role = Column(String, default="user")  # "user" or "admin"
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
 
 class Task(Base):
     __tablename__ = "tasks"
