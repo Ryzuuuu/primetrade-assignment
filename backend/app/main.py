@@ -21,3 +21,4 @@ app.include_router(tasks.router)
 @app.get("/", tags=["Health"])
 def root():
     return {"status": "ok", "message": "Primetrade API is running"}
+
